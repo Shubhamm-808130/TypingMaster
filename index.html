@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AuraType - Premium Hindi & English Typing Tutor</title>
+  <!-- FontAwesome Icons for modern visuals -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Dynamic Confetti Layer for goals celebration -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Glowing Blurry Decorative Elements -->
+  <div class="bg-decor bg-decor-1"></div>
+  <div class="bg-decor bg-decor-2"></div>
+
+  <!-- Toast Notification Bar -->
+  <div class="toast" id="toastBanner">
+    <i class="fas fa-check-circle"></i>
+    <span id="toastMessage">Goal reached! Keep typing.</span>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- Left Sidebar: Configurations & Progress -->
+    <aside class="sidebar">
+      
+      <!-- Brand Identity -->
+      <div class="brand">
+        <i class="fas fa-keyboard"></i>
+        <span>AuraType</span>
+      </div>
+
+      <!-- Language Selection -->
+      <div class="sidebar-section">
+        <div class="section-title">Language</div>
+        <div class="btn-group">
+          <button class="btn lang-btn active" data-lang="english"><i class="fas fa-font"></i> English</button>
+          <button class="btn lang-btn" data-lang="hindi"><i class="fas fa-language"></i> Hindi</button>
+        </div>
+      </div>
+
+
+
+      <!-- Activity Type Selection -->
+      <div class="sidebar-section">
+        <div class="section-title">Activity</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+          <button class="btn activity-btn active" data-activity="test" id="activityTestBtn" title="Test Mode" style="font-size: 0.8rem; padding: 8px 0;"><i class="fas fa-keyboard"></i> Test</button>
+          <button class="btn activity-btn" data-activity="learn" id="activityLearnBtn" title="Learn Mode" style="font-size: 0.8rem; padding: 8px 0;"><i class="fas fa-graduation-cap"></i> Learn</button>
+          <button class="btn activity-btn" data-activity="game" id="activityGameBtn" title="Game Mode" style="font-size: 0.8rem; padding: 8px 0;"><i class="fas fa-gamepad"></i> Game</button>
+        </div>
+      </div>
+
+      <!-- Lesson Selection Panel (Hidden by default, shown in Learn Mode) -->
+      <div class="sidebar-section" id="lessonConfig" style="display: none;">
+        <div class="section-title">Select Lesson</div>
+        <select id="lessonSelect">
+          <!-- Populated dynamically via JS -->
+        </select>
+      </div>
+
+      <!-- Difficulty Selection (Hidden in Learn Mode) -->
+      <div class="sidebar-section" id="diffConfig">
+        <div class="section-title">Difficulty / Length</div>
+        <select id="diffSelect">
+          <option value="easy">Easy (Simple Words)</option>
+          <option value="medium" selected>Medium (Standard)</option>
+          <option value="hard">Hard (Advanced Mix)</option>
+          <option value="long">Long Passages (Essays)</option>
+        </select>
+      </div>
+
+      <!-- Practice Game Modes (Hidden in Learn Mode) -->
+      <div class="sidebar-section" id="modeConfig">
+        <div class="section-title">Practice Mode</div>
+        <div class="btn-group">
+          <button class="btn mode-btn active" data-mode="time"><i class="far fa-clock"></i> Time</button>
+          <button class="btn mode-btn" data-mode="untimed"><i class="fas fa-infinity"></i> Untimed</button>
+        </div>
+        <div style="margin-top: 8px;">
+          <button class="btn mode-btn" data-mode="word" style="width: 100%;"><i class="fas fa-align-left"></i> Word Target</button>
+        </div>
+      </div>
+
+      <!-- Mode Configurations (Hidden in Learn Mode) -->
+      <div class="sidebar-section" id="modeSettingsConfig">
+        <!-- Timer settings -->
+        <div id="timeModeConfig">
+          <div class="section-title">Time Limit</div>
+          <select id="timerSelect">
+            <option value="15">15 Seconds</option>
+            <option value="30">30 Seconds</option>
+            <option value="60" selected>1 Minute</option>
+            <option value="120">2 Minutes</option>
+            <option value="300">5 Minutes</option>
+            <option value="600">10 Minutes</option>
+            <option value="custom">Custom Minutes</option>
+          </select>
+          <input type="number" id="customTimeInput" placeholder="Minutes (e.g. 5)" min="1" max="60" style="display: none; margin-top: 8px;">
+        </div>
+
+        <!-- Word target settings -->
+        <div id="wordModeConfig" style="display: none;">
+          <div class="section-title">Word Count</div>
+          <select id="wordSelect">
+            <option value="10">10 Words</option>
+            <option value="25" selected>25 Words</option>
+            <option value="50">50 Words</option>
+            <option value="100">100 Words</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sound Settings -->
+      <div class="sidebar-section">
+        <div class="section-title">Audio Profile</div>
+        <select id="soundSelect">
+          <option value="mechanical">Mechanical Switch</option>
+          <option value="typewriter">Retro Typewriter</option>
+          <option value="bubble">Satisfying Bubble</option>
+          <option value="none">No Sound</option>
+        </select>
+        <div class="volume-control" style="margin-top: 10px;">
+          <i class="fas fa-volume-down"></i>
+          <input type="range" id="volumeSlider" min="0" max="100" value="50">
+          <span id="volValue" style="font-size: 0.8rem; min-width: 32px; text-align: right;">50%</span>
+        </div>
+      </div>
+
+      <!-- UX Option Toggles -->
+      <div class="sidebar-section">
+        <div class="section-title">Preferences</div>
+        <div class="toggle-option">
+          <span>Zen Mode</span>
+          <label class="switch">
+            <input type="checkbox" id="zenToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-option">
+          <span>Strict Mode (Correction)</span>
+          <label class="switch">
+            <input type="checkbox" id="strictToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-option" id="customTextConfig">
+          <span>Custom Passages</span>
+          <label class="switch">
+            <input type="checkbox" id="customTextToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Theme Selector -->
+      <div class="sidebar-section" style="margin-top: auto;">
+        <div class="section-title">Color Theme</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button class="btn theme-btn active" data-theme="dark" style="padding: 8px 0;" title="Dark Theme"><i class="fas fa-moon"></i> Dark</button>
+          <button class="btn theme-btn" data-theme="light" style="padding: 8px 0;" title="Light Theme"><i class="fas fa-sun"></i> Light</button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Main Content Area: Typing Arena, History Graphs, Key guides -->
+    <main class="main-area">
+
+      <!-- Test Area Container -->
+      <div id="testAreaContainer" style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Custom text entry field -->
+        <div class="custom-text-area" id="customTextInputArea">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Paste custom practice paragraph:</label>
+            <button class="btn" id="fetchNewsBtn" style="padding: 4px 10px; font-size: 0.75rem;"><i class="fas fa-rss"></i> Fetch Today's News</button>
+          </div>
+          <textarea id="customText" placeholder="Type or paste your own paragraph here... (Hindi Mangal font or English)"></textarea>
+        </div>
+
+        <!-- Real-time Stats Overlay Panel -->
+        <header class="stats-header" id="statsHeader">
+          <div class="stat-item">
+            <span class="stat-val" id="liveWpm">0</span>
+            <span class="stat-lbl">WPM</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="liveAcc">100%</span>
+            <span class="stat-lbl">Accuracy</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="liveTime">60s</span>
+            <span class="stat-lbl">Time Left</span>
+          </div>
+          <!-- Streak Badge -->
+          <div class="streak-badge" id="streakBadge" style="display: none;">
+            <i class="fas fa-fire"></i>
+            <span id="streakCount">0 Day Streak</span>
+          </div>
+        </header>
+
+        <!-- Interactive Typing Arena -->
+        <section class="typing-arena-wrapper" id="typingArena">
+          <!-- Visual Focus Status Indicator (Non-Obscuring) -->
+          <div class="focus-indicator" id="focusIndicator">
+            <span class="status-dot"></span> <span class="status-text">Click to focus</span>
+          </div>
+          
+          <!-- Hidden input field to capture physical strokes -->
+          <input type="text" class="hidden-input" id="hiddenInput" autocomplete="off" autofocus>
+          
+          <!-- Visible Words list wrapper -->
+          <div class="words-container" id="wordsContainer">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </section>
+
+        <!-- Center Toolbar Option -->
+        <div style="display: flex; justify-content: center; gap: 16px;">
+          <button class="btn active" id="restartBtn" style="border-radius: 20px; padding: 10px 24px;"><i class="fas fa-redo"></i> Restart Practice</button>
+        </div>
+
+        <!-- Virtual Visual Keyboard Guide -->
+        <section class="keyboard-wrapper" id="keyboardWrapper">
+          <!-- Rendered dynamically by JS -->
+        </section>
+
+        <!-- Footer Section: Target Goal Setting and History Graphing -->
+        <footer style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px; min-height: 220px; max-height: 260px;">
+          
+          <!-- Daily Goal configurations -->
+          <div class="history-section" style="justify-content: space-between;">
+            <div class="section-title" style="margin-bottom: 0;"><i class="fas fa-bullseye" style="color: var(--accent-color);"></i> Set Daily Goals</div>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">Target Speed (WPM):</span>
+                <input type="number" id="goalWpm" value="40" min="5" max="150" style="width: 80px; padding: 6px 10px;">
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">Target Accuracy (%):</span>
+                <input type="number" id="goalAcc" value="95" min="50" max="100" style="width: 80px; padding: 6px 10px;">
+              </div>
+              <button class="btn active" id="saveGoalBtn" style="padding: 8px; font-size: 0.8rem; font-weight: 600;"><i class="fas fa-save"></i> Save Daily Goals</button>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--untyped-color); text-align: center;">
+              Reaching goals triggers confetti celebration & saves streak!
+            </div>
+          </div>
+
+          <!-- Canvas Daily History Chart -->
+          <div class="history-section">
+            <div class="section-title"><i class="fas fa-chart-line" style="color: var(--accent-color);"></i> Daily Performance Chart (Last 10 Runs)</div>
+            <div class="canvas-wrapper">
+              <canvas id="historyChart"></canvas>
+            </div>
+          </div>
+
+        </footer>
+      </div>
+
+      <!-- Game Area Container (Hidden by default) -->
+      <div id="gameAreaContainer" style="display: none; flex-direction: column; gap: 16px; height: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--panel-bg); padding: 12px 24px; border: 1px solid var(--panel-border); border-radius: 8px;">
+          <div style="display: flex; gap: 24px;">
+            <div style="font-size: 1rem; font-weight: bold; color: var(--text-primary);">Score: <span id="gameScore" style="color: var(--accent-color);">0</span></div>
+            <div style="font-size: 1rem; font-weight: bold; color: var(--text-primary);">Level: <span id="gameLevel" style="color: var(--accent-color);">1</span></div>
+          </div>
+          <div style="display: flex; gap: 8px; font-size: 1rem; font-weight: bold; color: var(--text-secondary);">
+            Lives: <span id="gameLives" style="color: #e74c3c; letter-spacing: 2px;">❤️❤️❤️</span>
+          </div>
+        </div>
+
+        <!-- Playfield Area -->
+        <div id="gamePlayfield" style="position: relative; flex: 1; min-height: 480px; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 8px; overflow: hidden;">
+          <!-- Game Start / Game Over Screens inside this playfield -->
+          <div id="gameOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); z-index: 10; color: #ffffff; gap: 16px; border-radius: 8px; padding: 24px;">
+            <h2 id="gameOverlayTitle" style="font-size: 2.2rem; font-weight: bold; color: var(--accent-color);">Word Invaders</h2>
+            <p id="gameOverlayDesc" style="font-size: 0.95rem; color: var(--text-secondary); max-width: 440px; text-align: center; line-height: 1.6;">Type the falling words before they hit the bottom of the screen. As your score increases, the words fall faster. Adjust language in the sidebar to practice English or Hindi Inscript words!</p>
+            <button class="btn active" id="startGameBtn" style="padding: 12px 32px; font-size: 1rem; font-weight: bold; border-radius: 30px;"><i class="fas fa-play"></i> Start Practice Game</button>
+          </div>
+        </div>
+
+        <!-- Bottom Game Input bar -->
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <input type="text" id="gameInput" autocomplete="off" placeholder="Click 'Start Practice Game' to begin..." style="font-size: 1.2rem; padding: 12px 20px; flex: 1;" disabled>
+          <button class="btn" id="quitGameBtn" style="padding: 12px 20px; font-weight: 600;"><i class="fas fa-sign-out-alt"></i> Quit Game</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Detailed Diagnostic Report Modal -->
+  <div class="modal-overlay" id="reportModalOverlay">
+    <div class="report-modal">
+      <div class="report-header">
+        <h2 class="report-title"><i class="fas fa-award" style="color: var(--accent-color);"></i> Practice Session Report</h2>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">Saved to history</span>
+      </div>
+
+      <!-- Main report stats grid -->
+      <div class="report-grid">
+        <div class="report-card">
+          <span class="val" id="repWpm">0</span>
+          <span class="lbl">Net WPM</span>
+          <span style="font-size: 0.75rem; color: var(--untyped-color);" id="repGrossWpm">0 gross</span>
+        </div>
+        <div class="report-card">
+          <span class="val" id="repAcc">100%</span>
+          <span class="lbl">Accuracy</span>
+        </div>
+        <div class="report-card">
+          <span class="val" id="repErrors">0</span>
+          <span class="lbl">Typos</span>
+        </div>
+        <div class="report-card">
+          <span class="val" id="repTime">0s</span>
+          <span class="lbl">Time Taken</span>
+        </div>
+      </div>
+
+      <!-- Mistake diagnostics list -->
+      <div class="mistakes-section">
+        <div class="section-title" style="font-size: 0.85rem;"><i class="fas fa-exclamation-triangle" style="color: var(--incorrect-color);"></i> Typing Weakness Analysis (Most Mistyped Keys)</div>
+        <div class="mistake-keys-list" id="mistakeKeysList">
+          <!-- badges rendered dynamically -->
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--panel-border); padding-top: 16px;">
+        <button class="btn active" id="closeReportBtn" style="border-radius: 20px; padding: 10px 28px;"><i class="fas fa-keyboard"></i> Practice Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connect Scripts -->
+  <script src="texts.js"></script>
+  <script src="keyboard-layouts.js"></script>
+  <script src="stats.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

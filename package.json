@@ -1,0 +1,41 @@
+{
+  "name": "typing-master-app",
+  "version": "1.0.0",
+  "description": "Minimalist English and Hindi Inscript Offline Typing Test and Game Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package-win": "electron-packager . TypingMaster --platform=win32 --arch=x64 --out=dist --overwrite",
+    "dist-installer": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.antigravity.typingmaster",
+    "productName": "TypingMaster",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "**/*",
+      "!dist${/*}"
+    ]
+  },
+  "keywords": [
+    "typing",
+    "test",
+    "inscript",
+    "hindi"
+  ],
+  "author": "Antigravity",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-packager": "^17.1.2"
+  }
+}
