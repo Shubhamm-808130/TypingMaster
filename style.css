@@ -301,8 +301,8 @@ input:checked + .slider:before {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--border-radius);
-  padding: 24px 32px;
-  height: 200px;
+  padding: 20px 32px;
+  height: 220px;
   overflow: hidden;
   scroll-behavior: smooth;
   cursor: text;

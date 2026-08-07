@@ -28,6 +28,7 @@ let selectedLessonIndex = 0;
 // O(1) DOM caching variables for lag-free performance
 let keyboardDomCache = {};
 let lastHighlightedKeyEl = null;
+let computedLineHeight = 55; // Dynamic line height reference for typing.com-style scrolling
 
 // Chunked loading state variables for 3000-word support without lag
 let allSessionWords = [];
@@ -762,6 +763,18 @@ function renderParagraph() {
     container.appendChild(wordSpan);
   });
 
+  // Calculate the exact line height dynamically
+  const wordSpans = container.querySelectorAll(".word");
+  if (wordSpans.length > 0) {
+    const firstTop = wordSpans[0].offsetTop;
+    for (let i = 1; i < wordSpans.length; i++) {
+      if (wordSpans[i].offsetTop > firstTop) {
+        computedLineHeight = wordSpans[i].offsetTop - firstTop;
+        break;
+      }
+    }
+  }
+
   positionCaret();
 }
 
@@ -824,12 +837,19 @@ function positionCaret() {
       caret.style.height = `${activeCharSpan.offsetHeight * 0.85}px`;
       caret.style.display = "block";
 
-      // Smooth scroll the words lines upwards line-by-line
+      // typing.com style scrolling: Active line is always centered vertically
       const wordSpan = activeCharSpan.parentElement;
-      if (wordSpan && wordSpan.offsetTop > 60) {
-        container.style.transform = `translateY(-${wordSpan.offsetTop - 30}px)`;
-      } else {
-        container.style.transform = "translateY(0)";
+      const arena = document.getElementById("typingArena");
+      if (wordSpan && computedLineHeight > 0) {
+        // Calculate current line index (0-indexed)
+        const lineIndex = Math.round(wordSpan.offsetTop / computedLineHeight);
+        
+        if (lineIndex >= 2) {
+          // Scroll so the active line is the second line (middle line)
+          arena.scrollTop = (lineIndex - 1) * computedLineHeight;
+        } else {
+          arena.scrollTop = 0;
+        }
       }
     }
   } else {
