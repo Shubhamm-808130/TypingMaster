@@ -701,7 +701,7 @@ function resetTest() {
   document.getElementById("hiddenInput").value = "";
 
   // Reset scroll translation offset
-  document.getElementById("wordsContainer").style.transform = "translateY(0)";
+  document.getElementById("typingArena").scrollTop = 0;
 
   // Show the Start Typing Overlay again
   const startOverlay = document.getElementById("typingStartOverlay");
@@ -805,7 +805,7 @@ function loadNextWordChunk() {
   highlightVirtualKey();
   
   // Reset scroll translation offset for the new chunk
-  document.getElementById("wordsContainer").style.transform = "translateY(0)";
+  document.getElementById("typingArena").scrollTop = 0;
   
   // Clear hidden input field
   document.getElementById("hiddenInput").value = "";

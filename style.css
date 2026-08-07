@@ -304,6 +304,7 @@ input:checked + .slider:before {
   padding: 24px 32px;
   height: 200px;
   overflow: hidden;
+  scroll-behavior: smooth;
   cursor: text;
   box-shadow: 0 4px 6px -1px var(--shadow-color);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
