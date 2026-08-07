@@ -301,11 +301,9 @@ input:checked + .slider:before {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--border-radius);
-  padding: 32px;
-  height: 220px;
+  padding: 24px 32px;
+  height: 200px;
   overflow: hidden;
-  display: flex;
-  align-items: center;
   cursor: text;
   box-shadow: 0 4px 6px -1px var(--shadow-color);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -420,6 +418,14 @@ input:checked + .slider:before {
 .word {
   display: inline-flex;
   white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.word.error-word {
+  border-bottom: 2px wavy var(--incorrect-color);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .char {

@@ -491,7 +491,28 @@ function initListeners() {
   document.getElementById("closeReportBtn").addEventListener("click", () => {
     document.getElementById("reportModalOverlay").classList.remove("open");
     resetTest();
-    document.getElementById("hiddenInput").focus();
+  });
+
+  // Report Modal Retake
+  document.getElementById("retakeReportBtn").addEventListener("click", () => {
+    document.getElementById("reportModalOverlay").classList.remove("open");
+    resetTest();
+  });
+
+  // Report Modal Next Lesson
+  document.getElementById("nextLessonReportBtn").addEventListener("click", () => {
+    document.getElementById("reportModalOverlay").classList.remove("open");
+    
+    // Advance to next lesson
+    const list = selectedLanguage === "english" ? ENGLISH_LESSONS : HINDI_LESSONS;
+    selectedLessonIndex = (selectedLessonIndex + 1) % list.length;
+    
+    const lessonSelect = document.getElementById("lessonSelect");
+    if (lessonSelect) {
+      lessonSelect.value = selectedLessonIndex;
+    }
+    
+    resetTest();
   });
 
   // Fetch News Trigger (Online Mode helper)
@@ -575,9 +596,8 @@ function resetTest() {
     if (isCustomEnabled && customVal.length > 0) {
       paragraphText = customVal;
     } else {
-      // Get array from database
-      const db = selectedLanguage === "english" ? ENGLISH_TEXTS : HINDI_TEXTS;
-      const list = db[selectedDifficulty] || db.easy;
+      let selectedTexts = [];
+      let currentWordCount = 0;
       
       // Calculate how many words are needed to fill the chosen session duration
       let wordsNeeded = 50; 
@@ -588,19 +608,38 @@ function resetTest() {
         wordsNeeded = 2500; // Provide a large 2500-word paragraph for untimed runs as requested
       }
 
-      let selectedTexts = [];
-      let currentWordCount = 0;
-      
-      if (list && list.length > 0) {
-        // Combine random sentences from database until word threshold is satisfied
-        while (currentWordCount < wordsNeeded) {
-          const randText = list[Math.floor(Math.random() * list.length)];
-          selectedTexts.push(randText);
-          currentWordCount += randText.split(/\s+/).length;
+      if (selectedDifficulty === "weak") {
+        const weakList = getWeakWords();
+        if (weakList && weakList.length > 0) {
+          // Combine random weak words until word threshold is satisfied
+          while (currentWordCount < wordsNeeded) {
+            const randWord = weakList[Math.floor(Math.random() * weakList.length)];
+            selectedTexts.push(randWord);
+            currentWordCount++;
+          }
+          paragraphText = selectedTexts.join(" ");
+        } else {
+          // Fallback if list is empty
+          paragraphText = selectedLanguage === "english" ? 
+            "No weak words recorded yet. Keep practicing to build your personal custom weakness training list!" :
+            "अभी तक कोई कठिन शब्द रिकॉर्ड नहीं हुआ है। कठिन शब्दों का रिकॉर्ड बनाने के लिए अभ्यास जारी रखें।";
         }
-        paragraphText = selectedTexts.join(" ");
       } else {
-        paragraphText = "fallback typing text";
+        // Standard difficulties (easy, medium, hard, long)
+        const db = selectedLanguage === "english" ? ENGLISH_TEXTS : HINDI_TEXTS;
+        const list = db[selectedDifficulty] || db.easy;
+
+        if (list && list.length > 0) {
+          // Combine random sentences from database until word threshold is satisfied
+          while (currentWordCount < wordsNeeded) {
+            const randText = list[Math.floor(Math.random() * list.length)];
+            selectedTexts.push(randText);
+            currentWordCount += randText.split(/\s+/).length;
+          }
+          paragraphText = selectedTexts.join(" ");
+        } else {
+          paragraphText = "fallback typing text";
+        }
       }
     }
   }
@@ -785,10 +824,10 @@ function positionCaret() {
       caret.style.height = `${activeCharSpan.offsetHeight * 0.85}px`;
       caret.style.display = "block";
 
-      // Smooth scroll the words lines upwards if the active word goes out of bounds
+      // Smooth scroll the words lines upwards line-by-line
       const wordSpan = activeCharSpan.parentElement;
-      if (wordSpan && wordSpan.offsetTop > 120) {
-        container.style.transform = `translateY(-${wordSpan.offsetTop - 50}px)`;
+      if (wordSpan && wordSpan.offsetTop > 60) {
+        container.style.transform = `translateY(-${wordSpan.offsetTop - 30}px)`;
       } else {
         container.style.transform = "translateY(0)";
       }
@@ -1081,6 +1120,11 @@ function handleKeydown(e) {
       // Style parent word to reflect error boundary
       if (targetCharObj.wordEl) targetCharObj.wordEl.classList.add("error-word");
       
+      // Capture the actual word with mistake and save it!
+      const currentChunkWordsList = allSessionWords.slice(currentWordChunkOffset - CHUNK_SIZE, currentWordChunkOffset);
+      const mistakeWord = currentChunkWordsList[targetCharObj.wordIndex];
+      recordWeakWord(mistakeWord);
+
       // Do NOT increment currentCharIndex so they stay on this character until they type the correct key!
     }
 
@@ -1149,6 +1193,17 @@ function completeTest() {
     });
   } else {
     mistakesList.innerHTML = `<div class="mistake-badge" style="border-color: var(--correct-color); background: rgba(46,204,113,0.1);"><span style="color: var(--correct-color)">Perfect run! No mistakes.</span></div>`;
+  }
+
+  // Toggle Next Lesson and Retake buttons in report modal
+  const nextLessonBtn = document.getElementById("nextLessonReportBtn");
+  const retakeBtn = document.getElementById("retakeReportBtn");
+  if (currentActivity === "learn") {
+    if (nextLessonBtn) nextLessonBtn.style.display = "inline-block";
+    if (retakeBtn) retakeBtn.style.display = "none";
+  } else {
+    if (nextLessonBtn) nextLessonBtn.style.display = "none";
+    if (retakeBtn) retakeBtn.style.display = "inline-block";
   }
 
   // Open modal
@@ -1629,4 +1684,31 @@ function popGameWord(index) {
   
   document.getElementById("gameScore").textContent = gameScore;
   document.getElementById("gameLevel").textContent = gameLevel;
+}
+
+// Record a word typed incorrectly for customized practice
+function recordWeakWord(word) {
+  if (!word) return;
+  // Clean word of punctuation and numbers
+  const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'१२३४५६७८९०१\[\]]/g, "").trim();
+  if (cleanWord.length < 2) return; // Ignore single letters/matras
+  
+  let weakWords = getWeakWords();
+  if (!weakWords.includes(cleanWord)) {
+    weakWords.push(cleanWord);
+    // Keep list to a maximum of 150 words to prevent storage issues
+    if (weakWords.length > 150) {
+      weakWords.shift();
+    }
+    localStorage.setItem("typing_test_weak_words", JSON.stringify(weakWords));
+  }
+}
+
+// Get the stored list of weak words
+function getWeakWords() {
+  try {
+    return JSON.parse(localStorage.getItem("typing_test_weak_words")) || [];
+  } catch (e) {
+    return [];
+  }
 }
