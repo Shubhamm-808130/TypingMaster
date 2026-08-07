@@ -25,6 +25,18 @@ let soundVolume = 50;
 let currentActivity = "test"; // 'test' or 'learn'
 let selectedLessonIndex = 0;
 
+// O(1) DOM caching variables for lag-free performance
+let keyboardDomCache = {};
+let lastHighlightedKeyEl = null;
+
+// Chunked loading state variables for 3000-word support without lag
+let allSessionWords = [];
+let currentWordChunkOffset = 0;
+const CHUNK_SIZE = 80;
+let accumulatedCorrectTypedChars = 0;
+let accumulatedTotalTypedChars = 0;
+let accumulatedErrorsCount = 0;
+
 // Game Mode state variables
 let gameActive = false;
 let gameScore = 0;
@@ -522,6 +534,14 @@ function resetTest() {
   clearInterval(testTimerInterval);
   testTimerInterval = null;
 
+  // Reset chunked loading state
+  allSessionWords = [];
+  currentWordChunkOffset = 0;
+  accumulatedCorrectTypedChars = 0;
+  accumulatedTotalTypedChars = 0;
+  accumulatedErrorsCount = 0;
+  lastHighlightedKeyEl = null;
+
   // Load paragraph text
   if (currentActivity === "learn") {
     const list = selectedLanguage === "english" ? ENGLISH_LESSONS : HINDI_LESSONS;
@@ -541,10 +561,10 @@ function resetTest() {
       // Calculate how many words are needed to fill the chosen session duration
       let wordsNeeded = 50; 
       if (testMode === "time") {
-        // Set a buffer of 120 WPM (2 words per second) so they never run out of words
-        wordsNeeded = Math.ceil((timerDuration / 60) * 120); 
+        // Set a buffer of 200 WPM (so even fast typists never run out of words)
+        wordsNeeded = Math.ceil((timerDuration / 60) * 200); 
       } else if (testMode === "untimed") {
-        wordsNeeded = 300; // Provide a large paragraph for untimed runs
+        wordsNeeded = 2500; // Provide a large 2500-word paragraph for untimed runs as requested
       }
 
       let selectedTexts = [];
@@ -567,25 +587,31 @@ function resetTest() {
   // Pre-process Hindi text spaces to prevent rendering glitches
   paragraphText = paragraphText.replace(/\s+/g, " ");
 
-  // If word mode, slice paragraph to length
+  // Split overall paragraph text into word array
+  allSessionWords = paragraphText.split(" ");
+  
+  // If word target mode, slice the overall array to the requested word limit
   if (testMode === "word") {
-    const words = paragraphText.split(" ");
-    paragraphText = words.slice(0, Math.min(words.length, wordLimit)).join(" ");
+    allSessionWords = allSessionWords.slice(0, Math.min(allSessionWords.length, wordLimit));
   }
 
-  // Flatten into characters list
+  // Set up the first word chunk
+  currentWordChunkOffset = 0;
+  const chunkWords = allSessionWords.slice(currentWordChunkOffset, currentWordChunkOffset + CHUNK_SIZE);
+  currentWordChunkOffset += CHUNK_SIZE;
+
+  // Flatten the chunk into characters list
   charactersList = [];
-  const words = paragraphText.split(" ");
-  words.forEach((w, wIdx) => {
+  chunkWords.forEach((w, wIdx) => {
     for (let i = 0; i < w.length; i++) {
       charactersList.push({
         char: w[i],
         wordIndex: wIdx,
-        status: "untyped" // 'untyped', 'correct', 'incorrect'
+        status: "untyped"
       });
     }
     // Add space after word (except the last word)
-    if (wIdx < words.length - 1) {
+    if (wIdx < chunkWords.length - 1) {
       charactersList.push({
         char: " ",
         wordIndex: wIdx,
@@ -623,7 +649,6 @@ function resetTest() {
   drawProgressChart("historyChart", selectedLayout);
 }
 
-// Render words and characters in DOM
 function renderParagraph() {
   const container = document.getElementById("wordsContainer");
   container.innerHTML = "";
@@ -652,6 +677,10 @@ function renderParagraph() {
       charSpan.className = "char";
       charSpan.id = `char-${item.index}`;
       
+      // Store references directly on the object for O(1) rendering access
+      item.charObj.el = charSpan;
+      item.charObj.wordEl = wordSpan;
+      
       // Represent spaces visually in DOM
       if (item.charObj.char === " ") {
         charSpan.innerHTML = "&nbsp;";
@@ -667,17 +696,57 @@ function renderParagraph() {
   positionCaret();
 }
 
+// Load the next chunk of words (prevents DOM bloating on 3000-word tests)
+function loadNextWordChunk() {
+  // Accumulate stats from the completed chunk
+  accumulatedCorrectTypedChars += correctTypedChars;
+  accumulatedTotalTypedChars += totalTypedChars;
+  accumulatedErrorsCount += errorsCount;
+  
+  // Set up the next chunk of words
+  const chunkWords = allSessionWords.slice(currentWordChunkOffset, currentWordChunkOffset + CHUNK_SIZE);
+  currentWordChunkOffset += CHUNK_SIZE;
+  
+  // Flatten chunk words into charactersList
+  charactersList = [];
+  chunkWords.forEach((w, wIdx) => {
+    for (let i = 0; i < w.length; i++) {
+      charactersList.push({
+        char: w[i],
+        wordIndex: wIdx,
+        status: "untyped"
+      });
+    }
+    // Add space after word (except the last word)
+    if (wIdx < chunkWords.length - 1) {
+      charactersList.push({
+        char: " ",
+        wordIndex: wIdx,
+        status: "untyped"
+      });
+    }
+  });
+  
+  currentCharIndex = 0;
+  correctTypedChars = 0;
+  totalTypedChars = 0;
+  errorsCount = 0;
+  
+  renderParagraph();
+  highlightVirtualKey();
+  
+  // Clear hidden input field
+  document.getElementById("hiddenInput").value = "";
+}
+
 // Position visual floating caret relative to active character
 function positionCaret() {
   const container = document.getElementById("wordsContainer");
   const caret = document.getElementById("caret");
   
   if (currentCharIndex < charactersList.length) {
-    const activeCharSpan = document.getElementById(`char-${currentCharIndex}`);
+    const activeCharSpan = charactersList[currentCharIndex].el; // O(1) cached DOM ref
     if (activeCharSpan) {
-      const activeRect = activeCharSpan.getBoundingClientRect();
-      const parentRect = container.getBoundingClientRect();
-      
       caret.style.left = `${activeCharSpan.offsetLeft}px`;
       caret.style.top = `${activeCharSpan.offsetTop + 4}px`;
       caret.style.height = `${activeCharSpan.offsetHeight * 0.85}px`;
@@ -685,7 +754,7 @@ function positionCaret() {
 
       // Smooth scroll the words lines upwards if the active word goes out of bounds
       const wordSpan = activeCharSpan.parentElement;
-      if (wordSpan.offsetTop > 120) {
+      if (wordSpan && wordSpan.offsetTop > 120) {
         container.style.transform = `translateY(-${wordSpan.offsetTop - 50}px)`;
       } else {
         container.style.transform = "translateY(0)";
@@ -693,7 +762,7 @@ function positionCaret() {
     }
   } else {
     // Caret at the end of text
-    const lastCharSpan = document.getElementById(`char-${charactersList.length - 1}`);
+    const lastCharSpan = charactersList[charactersList.length - 1]?.el; // O(1) cached DOM ref
     if (lastCharSpan) {
       caret.style.left = `${lastCharSpan.offsetLeft + lastCharSpan.offsetWidth}px`;
       caret.style.top = `${lastCharSpan.offsetTop + 4}px`;
@@ -705,6 +774,9 @@ function positionCaret() {
 function renderKeyboardLayout() {
   const wrapper = document.getElementById("keyboardWrapper");
   wrapper.innerHTML = "";
+  
+  // Reset cache
+  keyboardDomCache = {};
 
   KEYBOARD_ROWS.forEach(rowKeys => {
     const rowDiv = document.createElement("div");
@@ -714,6 +786,9 @@ function renderKeyboardLayout() {
       const keyDiv = document.createElement("div");
       keyDiv.className = "kb-key";
       keyDiv.dataset.key = keySymbol;
+      
+      // Store in cache
+      keyboardDomCache[keySymbol] = keyDiv;
 
       // Handle legend label based on chosen layout
       const legends = KEY_LEGENDS[selectedLayout] || KEY_LEGENDS.english;
@@ -745,8 +820,11 @@ function renderKeyboardLayout() {
 
 // Map characters to keyboard keys visually to highlight what's next
 function highlightVirtualKey() {
-  // Remove existing highlights
-  document.querySelectorAll(".kb-key").forEach(k => k.classList.remove("highlight-next"));
+  // Remove existing highlights using O(1) direct reference if available
+  if (lastHighlightedKeyEl) {
+    lastHighlightedKeyEl.classList.remove("highlight-next");
+    lastHighlightedKeyEl = null;
+  }
 
   if (currentCharIndex >= charactersList.length) return;
 
@@ -769,8 +847,11 @@ function highlightVirtualKey() {
   }
 
   if (targetKeySymbol) {
-    const keyEl = document.querySelector(`.kb-key[data-key="${targetKeySymbol}"]`);
-    if (keyEl) keyEl.classList.add("highlight-next");
+    const keyEl = keyboardDomCache[targetKeySymbol];
+    if (keyEl) {
+      keyEl.classList.add("highlight-next");
+      lastHighlightedKeyEl = keyEl;
+    }
   }
 }
 
@@ -799,32 +880,24 @@ function startTestTimer() {
 
 // Live stats computations during run
 function updateStatsPanel() {
-  // Speed calculation (WPM = (Chars / 5) / time)
-  let elapsedMinutes = 1 / 60; // minimum fallback (1 second equivalent)
+  let elapsedMinutes = 1 / 60;
   
   if (testStartTime) {
     const elapsedSeconds = (Date.now() - testStartTime) / 1000;
     elapsedMinutes = Math.max(elapsedSeconds, 1) / 60;
   } else if (testMode === "time") {
-    // Before start time, show timer config
     elapsedMinutes = timerDuration / 60;
   }
 
-  // WPM (Words Per Minute) = (total correct keystrokes / 5) / elapsed minutes
-  const wpmVal = Math.round((correctTypedChars / 5) / elapsedMinutes);
-  
-  // Accuracy = (correct / total) * 100
-  const accVal = totalTypedChars > 0 ? Math.round((correctTypedChars / totalTypedChars) * 100) : 100;
+  const overallCorrect = accumulatedCorrectTypedChars + correctTypedChars;
+  const overallTotal = accumulatedTotalTypedChars + totalTypedChars;
 
-  // Display fields
+  const wpmVal = Math.round((overallCorrect / 5) / elapsedMinutes);
+  const accVal = overallTotal > 0 ? Math.round((overallCorrect / overallTotal) * 100) : 100;
+
   document.getElementById("liveWpm").textContent = wpmVal;
   document.getElementById("liveAcc").textContent = `${accVal}%`;
-  
-  if (testMode === "time") {
-    document.getElementById("liveTime").textContent = `${timeRemaining}s`;
-  } else {
-    document.getElementById("liveTime").textContent = `${timeRemaining}s`;
-  }
+  document.getElementById("liveTime").textContent = `${timeRemaining}s`;
 }
 
 // Keystroke Handler (Intercepts events, transforms characters)
@@ -857,9 +930,9 @@ function handleKeydown(e) {
     e.preventDefault();
   }
 
-  // Active click styling for keyboard visualizer
-  const keyEl = document.querySelector(`.kb-key[data-key="${key === " " ? "Space" : key.toLowerCase()}"]`) ||
-                document.querySelector(`.kb-key[data-key="${key}"]`);
+  // Active click styling for keyboard visualizer using O(1) cache
+  let targetKeySymbol = key === " " ? "Space" : key.toLowerCase();
+  let keyEl = keyboardDomCache[targetKeySymbol] || keyboardDomCache[key];
   if (keyEl) {
     keyEl.classList.add("active-pressed");
     setTimeout(() => keyEl.classList.remove("active-pressed"), 100);
@@ -873,14 +946,13 @@ function handleKeydown(e) {
       const prevChar = charactersList[currentCharIndex];
       prevChar.status = "untyped";
       
-      // Update visual styles
-      const charEl = document.getElementById(`char-${currentCharIndex}`);
-      if (charEl) {
-        charEl.className = "char";
+      // Update visual styles using cached element
+      if (prevChar.el) {
+        prevChar.el.className = "char";
       }
 
-      // If the word was red, clear error status on backspace
-      const wordSpan = document.getElementById(`word-${prevChar.wordIndex}`);
+      // If the word was red, clear error status on backspace using cached word element
+      const wordSpan = prevChar.wordEl;
       if (wordSpan) {
         // Recalculate if there are still errors in this word
         const charsInWord = Array.from(wordSpan.querySelectorAll(".char"));
@@ -944,8 +1016,7 @@ function handleKeydown(e) {
     if (isMatch) {
       playClickSound();
       targetCharObj.status = "correct";
-      const charEl = document.getElementById(`char-${currentCharIndex}`);
-      if (charEl) charEl.className = "char correct";
+      if (targetCharObj.el) targetCharObj.el.className = "char correct";
       correctTypedChars++;
       currentCharIndex++;
     } else {
@@ -961,12 +1032,10 @@ function handleKeydown(e) {
       errorsCount++;
 
       targetCharObj.status = "incorrect";
-      const charEl = document.getElementById(`char-${currentCharIndex}`);
-      if (charEl) charEl.className = "char incorrect";
+      if (targetCharObj.el) targetCharObj.el.className = "char incorrect";
       
       // Style parent word to reflect error boundary
-      const wordEl = document.getElementById(`word-${targetCharObj.wordIndex}`);
-      if (wordEl) wordEl.classList.add("error-word");
+      if (targetCharObj.wordEl) targetCharObj.wordEl.classList.add("error-word");
       
       currentCharIndex++;
     }
@@ -975,9 +1044,13 @@ function handleKeydown(e) {
     highlightVirtualKey();
     updateStatsPanel();
 
-    // Check for test completion
+    // Check for chunk or test completion
     if (currentCharIndex >= charactersList.length) {
-      completeTest();
+      if (currentWordChunkOffset < allSessionWords.length) {
+        loadNextWordChunk();
+      } else {
+        completeTest();
+      }
     }
   }
 }
@@ -992,14 +1065,18 @@ function completeTest() {
   const timeElapsed = testStartTime ? Math.max((Date.now() - testStartTime) / 1000, 1) : timerDuration;
   const elapsedMinutes = timeElapsed / 60;
 
+  const overallCorrect = accumulatedCorrectTypedChars + correctTypedChars;
+  const overallTotal = accumulatedTotalTypedChars + totalTypedChars;
+  const overallErrors = accumulatedErrorsCount + errorsCount;
+
   // Gross WPM = (Total keystrokes / 5) / minutes
-  const grossWpm = Math.round((totalTypedChars / 5) / elapsedMinutes);
+  const grossWpm = Math.round((overallTotal / 5) / elapsedMinutes);
   
   // Net WPM = ((Correct keystrokes) / 5) / minutes
-  const netWpm = Math.max(0, Math.round((correctTypedChars / 5) / elapsedMinutes));
+  const netWpm = Math.max(0, Math.round((overallCorrect / 5) / elapsedMinutes));
   
   // Accuracy
-  const finalAcc = totalTypedChars > 0 ? Math.round((correctTypedChars / totalTypedChars) * 100) : 100;
+  const finalAcc = overallTotal > 0 ? Math.round((overallCorrect / overallTotal) * 100) : 100;
 
   // Save to History using localStorage helper
   saveRun(netWpm, finalAcc, selectedDifficulty, selectedLayout);
@@ -1011,7 +1088,7 @@ function completeTest() {
   document.getElementById("repWpm").textContent = netWpm;
   document.getElementById("repGrossWpm").textContent = `${grossWpm} gross`;
   document.getElementById("repAcc").textContent = `${finalAcc}%`;
-  document.getElementById("repErrors").textContent = errorsCount;
+  document.getElementById("repErrors").textContent = overallErrors;
   document.getElementById("repTime").textContent = `${Math.round(timeElapsed)}s`;
 
   // Mistakes keys list renderer
