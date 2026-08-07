@@ -249,13 +249,23 @@ function initListeners() {
     }
   };
 
-  // Focus trigger on arena click
-  typingArena.addEventListener("click", () => {
+  // Focus trigger on arena click (only if start overlay is hidden)
+  typingArena.addEventListener("click", (e) => {
+    const startOverlay = document.getElementById("typingStartOverlay");
+    if (startOverlay && !startOverlay.classList.contains("hidden")) {
+      return;
+    }
     hiddenInput.focus();
     setFocusState(true);
   });
 
   hiddenInput.addEventListener("focus", () => {
+    // Prevent focus if start overlay is visible
+    const startOverlay = document.getElementById("typingStartOverlay");
+    if (startOverlay && !startOverlay.classList.contains("hidden")) {
+      hiddenInput.blur();
+      return;
+    }
     setFocusState(true);
   });
 
@@ -266,7 +276,6 @@ function initListeners() {
   // Restart Button
   document.getElementById("restartBtn").addEventListener("click", () => {
     resetTest();
-    hiddenInput.focus();
   });
 
   // Activity Switcher (Test vs Learn)
@@ -338,6 +347,18 @@ function initListeners() {
 
   // Handle typing key intercepts and conversions
   hiddenInput.addEventListener("keydown", handleKeydown);
+
+  // Start Practice Button Overlay click
+  document.getElementById("startPracticeBtn").addEventListener("click", () => {
+    document.getElementById("typingStartOverlay").classList.add("hidden");
+    
+    // Start timer immediately!
+    startTestTimer();
+    
+    // Focus the typing arena input
+    hiddenInput.focus();
+    setFocusState(true);
+  });
 
   // Language selectors
   document.querySelectorAll(".lang-btn").forEach(btn => {
@@ -640,6 +661,15 @@ function resetTest() {
   // Clear hidden input field
   document.getElementById("hiddenInput").value = "";
 
+  // Reset scroll translation offset
+  document.getElementById("wordsContainer").style.transform = "translateY(0)";
+
+  // Show the Start Typing Overlay again
+  const startOverlay = document.getElementById("typingStartOverlay");
+  if (startOverlay) {
+    startOverlay.classList.remove("hidden");
+  }
+
   // Render text to arena
   renderParagraph();
   renderKeyboardLayout();
@@ -734,6 +764,9 @@ function loadNextWordChunk() {
   
   renderParagraph();
   highlightVirtualKey();
+  
+  // Reset scroll translation offset for the new chunk
+  document.getElementById("wordsContainer").style.transform = "translateY(0)";
   
   // Clear hidden input field
   document.getElementById("hiddenInput").value = "";
@@ -1018,6 +1051,17 @@ function handleKeydown(e) {
       targetCharObj.status = "correct";
       if (targetCharObj.el) targetCharObj.el.className = "char correct";
       correctTypedChars++;
+      
+      // If the word was red, clear error status on correction
+      const wordSpan = targetCharObj.wordEl;
+      if (wordSpan) {
+        const charsInWord = Array.from(wordSpan.querySelectorAll(".char"));
+        const hasWordError = charsInWord.some(c => c !== targetCharObj.el && c.classList.contains("incorrect"));
+        if (!hasWordError) {
+          wordSpan.classList.remove("error-word");
+        }
+      }
+      
       currentCharIndex++;
     } else {
       playErrorSound();
@@ -1037,7 +1081,7 @@ function handleKeydown(e) {
       // Style parent word to reflect error boundary
       if (targetCharObj.wordEl) targetCharObj.wordEl.classList.add("error-word");
       
-      currentCharIndex++;
+      // Do NOT increment currentCharIndex so they stay on this character until they type the correct key!
     }
 
     positionCaret();
